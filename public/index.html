@@ -547,16 +547,89 @@
     function renderCurrentTab() {
       switch (appState.currentTab) {
         case "dashboard": return renderDashboard();
-        case "topics":
+          
+case "topics": {
+  const focus = Array.isArray(appState.user?.profile?.topics)
+    ? appState.user.profile.topics
+    : [];
+
+  const resources = {
+    algebra: [
+      { title: "Khan Academy: Algebra", url: "https://www.khanacademy.org/math/algebra" },
+      { title: "AoPS Alcumus: Practice", url: "https://artofproblemsolving.com/alcumus" }
+    ],
+    geometry: [
+      { title: "Khan Academy: Geometry", url: "https://www.khanacademy.org/math/geometry" },
+      { title: "AoPS Alcumus: Practice", url: "https://artofproblemsolving.com/alcumus" }
+    ],
+    number_theory: [
+      { title: "Khan Academy: Pre-Algebra", url: "https://www.khanacademy.org/math/pre-algebra" },
+      { title: "AoPS Alcumus: Practice", url: "https://artofproblemsolving.com/alcumus" }
+    ],
+    counting: [
+      { title: "Khan Academy: Probability", url: "https://www.khanacademy.org/math/statistics-probability" },
+      { title: "AoPS Alcumus: Practice", url: "https://artofproblemsolving.com/alcumus" }
+    ]
+  };
+
+  const topics = [...CATALOG.topics].sort(
+    (a, b) => Number(focus.includes(b.id)) - Number(focus.includes(a.id))
+  );
+
   return `
     <div class="card">
-      <h2>Topics to Learn</h2>
-      <p>Math topics and learning resources coming soon!</p>
-      <button class="btn" onclick="switchTab('dashboard')">
-        Back to Dashboard
+      <h2>📚 Topics to Learn</h2>
+      <p>Explore math topics and find resources to improve your skills!</p>
+      <p class="muted">
+        Topics you selected in Math Journey appear first.
+        Personalized recommendations based on contest results are coming later.
+      </p>
+      <button class="btn plain" onclick="switchTab('dashboard')">
+        ← Back to Dashboard
       </button>
     </div>
+
+    <div class="grid-2">
+      ${topics.map(topic => `
+        <div class="card">
+          <h3>${esc(topic.label)}</h3>
+
+          ${focus.includes(topic.id)
+            ? '<p>⭐ One of your selected focus topics!</p>'
+            : ''}
+
+          <h4>Subtopics</h4>
+          <ul>
+            ${(topic.learn || []).map(subtopic => `
+              <li>${esc(subtopic)}</li>
+            `).join("")}
+          </ul>
+
+          <h4>Learning Resources</h4>
+          ${(resources[topic.id] || []).map(link => `
+            <a class="btn"
+               style="display:block; text-decoration:none; margin:8px 0;"
+               href="${esc(link.url)}"
+               target="_blank"
+               rel="noopener noreferrer">
+              ${esc(link.title)} ↗
+            </a>
+          `).join("")}
+        </div>
+      `).join("")}
+    </div>
+
+    <div class="card">
+      <h3>🚀 Coming Soon</h3>
+      <p>
+        Once we introduce problem-by-problem contest logging,
+        this page will recommend topics based on your mistakes
+        and progress over time!
+      </p>
+    </div>
   `;
+}
+
         case "log": return renderLogContests();
         case "community": return renderCommunity();
         case "buddies": return renderBuddies();
