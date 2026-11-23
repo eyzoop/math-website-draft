@@ -547,6 +547,16 @@
     function renderCurrentTab() {
       switch (appState.currentTab) {
         case "dashboard": return renderDashboard();
+        case "topics":
+  return `
+    <div class="card">
+      <h2>Topics to Learn</h2>
+      <p>Math topics and learning resources coming soon!</p>
+      <button class="btn" onclick="switchTab('dashboard')">
+        Back to Dashboard
+      </button>
+    </div>
+  `;
         case "log": return renderLogContests();
         case "community": return renderCommunity();
         case "buddies": return renderBuddies();
@@ -680,7 +690,7 @@
         nextSteps = `
           <p><b>Focus on ${esc(topic.label)}</b></p>
           ${practice ? `<a class="btn" style="width:100%; margin-bottom: 8px; text-decoration:none;" href="${esc(practice.link)}" target="_blank" rel="noopener">Practice: past ${esc(practice.name)} problems</a>` : ""}
-          <button class="btn" style="width:100%;" onclick="switchTab('community')">Topics to Learn: ${esc(topic.learn.join(", "))}</button>
+          <button class="btn" style="width:100%;" onclick="switchTab('topics')">Topics to Learn: ${esc(topic.learn.join(", "))}</button>
         `;
       }
 
