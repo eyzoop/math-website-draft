@@ -538,11 +538,23 @@ function renderCustomThemeCard() {
 
   return `
     <div class="card">
-      <h3>🎨 Create your own theme</h3>
-      <p class="muted">
-        Choose your colors and click Save & Apply.
-        Your theme is saved on this browser.
-      </p>
+      <h3>🎨 Appearance & Themes</h3>
+<p class="muted">
+  Choose a preset theme or create your own!
+  Your preferences are saved in this browser.
+</p>
+
+<h4>Choose from presets</h4>
+<select id="presetTheme" onchange="setTheme(this.value)">
+  <option value="" disabled ${appState.currentTheme === "theme-custom" ? "selected" : ""}>Select a preset...</option>
+  <option value="theme-pink" ${appState.currentTheme === "theme-pink" ? "selected" : ""}>Pink</option>
+  <option value="theme-bluegreen" ${appState.currentTheme === "theme-bluegreen" ? "selected" : ""}>Blue + Green</option>
+  <option value="theme-yelloworange" ${appState.currentTheme === "theme-yelloworange" ? "selected" : ""}>Yellow + Orange</option>
+  <option value="theme-rainbow" ${appState.currentTheme === "theme-rainbow" ? "selected" : ""}>Rainbow</option>
+  <option value="theme-bw" ${appState.currentTheme === "theme-bw" ? "selected" : ""}>Black & White</option>
+</select>
+
+<h4>Or create your own theme</h4>
 
       <div class="grid-2">
         ${Object.entries(customThemeFields).map(([name, field]) => `
@@ -1755,7 +1767,6 @@ case "topics": {
         return `
           <div class="card">
             <h3>Settings</h3>
-            <button class="btn" onclick="promptChangeTheme()">Change display color</button>
             <p class="muted">Log in to change your display name and profile.</p>
           </div>
           ${renderCustomThemeCard()}
@@ -1772,9 +1783,6 @@ case "topics": {
             <div style="display:flex; flex-direction:column; gap: 15px; flex-grow: 1;">
               <button class="btn" style="width:100%; text-align:center;" onclick="changeDisplayName()">
                 Change display name
-              </button>
-              <button class="btn" style="width:100%; text-align:center;" onclick="promptChangeTheme()">
-                Change display color
               </button>
               <button class="btn" style="width:100%; text-align:center;" onclick="appState.editingProfile=true; switchTab('dashboard');">
                 Edit my journey answers
