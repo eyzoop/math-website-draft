@@ -903,25 +903,6 @@ case "topics": {
           </div>
         </div>
 
-        <div class="card">
-          <h3>My AI agent:</h3>
-          <p>💬 <i>"Hello, <b>${esc(appState.user.username)}</b>, how can I help?"</i></p>
-          ${appState.config.aiConfigured ? "" : `<p class="muted">The AI tutor hasn't been turned on for this site yet.</p>`}
-
-          <div class="chat-box" id="aiChatBox">
-            ${0 === appState.aiChatHistory.length ? "<i>No conversation yet. Ask a question below!</i>" : ""}
-            ${appState.aiChatHistory.map(e => `
-              <div class="chat-msg"><b>${esc(e.sender)}:</b> ${esc(e.text)}</div>
-            `).join("")}
-            ${appState.aiLoading ? '<div class="chat-msg"><i>AI is thinking...</i></div>' : ""}
-          </div>
-
-          <div style="display:flex; gap: 8px;">
-            <input type="text" id="aiQueryInput" placeholder='Type to ask a question (e.g. "How do I prepare for AMC 10?")' style="margin: 0;" onkeydown="if(event.key==='Enter') sendAiMessage()">
-            <button class="btn" style="white-space:nowrap;" onclick="sendAiMessage()">Send</button>
-          </div>
-        </div>
-
         ${showForm ? renderJourneyForm(p) : `
           <div class="grid-2">
             <div class="card">
