@@ -65,6 +65,16 @@
       --text-btn: #fff;
       --border-color: #18181b;
     }
+    body.theme-custom {
+  --bg-body: #f8f6ff;
+  --bg-container: #eee5ff;
+  --bg-card: #ffffff;
+  --bg-btn: #7555ba;
+  --bg-nav: color-mix(in srgb, var(--bg-btn) 22%, white);
+  --text-main: #262238;
+  --text-btn: #ffffff;
+  --border-color: color-mix(in srgb, var(--bg-btn) 75%, black);
+}
     body {
       margin: 0;
       padding: 20px;
@@ -445,10 +455,116 @@ if (!res.ok) throw new Error(data.error || "Something went wrong. Please try aga
     }
 
     function setTheme(e) {
-      document.body.className = e;
-      appState.currentTheme = e;
-      try { localStorage.setItem("theme", e); } catch {}
-    }
+      
+const customThemeFields = {
+  page: {
+    label: "Page background",
+    variable: "--bg-body",
+    initial: "#f8f6ff"
+  },
+  panel: {
+    label: "Main panel",
+    variable: "--bg-container",
+    initial: "#eee5ff"
+  },
+  cards: {
+    label: "Cards",
+    variable: "--bg-card",
+    initial: "#ffffff"
+  },
+  accent: {
+    label: "Buttons / accent",
+    variable: "--bg-btn",
+    initial: "#7555ba"
+  },
+  buttonText: {
+    label: "Button text",
+    variable: "--text-btn",
+    initial: "#ffffff"
+  }
+};
+
+function getCustomColors() {
+  let saved = {};
+  try {
+    saved = JSON.parse(
+      localStorage.getItem("customThemeColors") || "{}"
+    ) || {};
+  } catch {}
+
+  return Object.fromEntries(
+    Object.entries(customThemeFields).map(([name, field]) => [
+      name,
+      /^#[0-9a-f]{6}$/i.test(saved[name] || "")
+        ? saved[name]
+        : field.initial
+    ])
+  );
+}
+
+function setTheme(e) {
+  document.body.className = e;
+  appState.currentTheme = e;
+
+  Object.values(customThemeFields).forEach(field => {
+    document.body.style.removeProperty(field.variable);
+  });
+
+  if (e === "theme-custom") {
+    const colors = getCustomColors();
+    Object.entries(customThemeFields).forEach(([name, field]) => {
+      document.body.style.setProperty(field.variable, colors[name]);
+    });
+  }
+
+  try { localStorage.setItem("theme", e); } catch {}
+}
+
+function saveCustomColors() {
+  const colors = {};
+
+  for (const name of Object.keys(customThemeFields)) {
+    colors[name] = document.getElementById("custom-" + name).value;
+  }
+
+  try {
+    localStorage.setItem("customThemeColors", JSON.stringify(colors));
+  } catch {}
+
+  setTheme("theme-custom");
+  renderApp();
+}
+
+function renderCustomThemeCard() {
+  const colors = getCustomColors();
+
+  return `
+    <div class="card">
+      <h3>🎨 Create your own theme</h3>
+      <p class="muted">
+        Choose your colors and click Save & Apply.
+        Your theme is saved on this browser.
+      </p>
+
+      <div class="grid-2">
+        ${Object.entries(customThemeFields).map(([name, field]) => `
+          <label>
+            <b>${field.label}</b>
+            <input type="color"
+                   id="custom-${name}"
+                   value="${colors[name]}"
+                   style="height:48px; cursor:pointer;">
+          </label>
+        `).join("")}
+      </div>
+
+      <button class="btn" onclick="saveCustomColors()">
+        Save & Apply Custom Theme
+      </button>
+    </div>
+  `;
+}
+
 
     function promptChangeTheme() {
       const e = prompt("Choose a Theme (type number):\n1. Pink\n2. Blue + Green\n3. Yellow + Orange\n4. Rainbow\n5. Black & White Minimalist", "1");
@@ -1663,6 +1779,7 @@ case "topics": {
             <button class="btn" onclick="promptChangeTheme()">Change display color</button>
             <p class="muted">Log in to change your display name and profile.</p>
           </div>
+          ${renderCustomThemeCard()}
         `;
       }
       const avatar = appState.pfpUrl || appState.user.avatar_url;
@@ -1691,6 +1808,7 @@ case "topics": {
             <p class="muted">Your profile picture only shows on this device.</p>
           </div>
         </div>
+        ${renderCustomThemeCard()}
         ${appState.user.isAdmin ? renderAdmin() : ""}
       `;
     }
