@@ -415,7 +415,12 @@
       }
       const res = await fetch(path, options);
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Something went wrong. Please try again.");
+      if (res.status === 401 && !path.startsWith("/api/auth/")) {
+  appState.user = null;
+  appState.authMode = "login";
+  throw new Error("Your login expired. Please log in again.");
+}
+if (!res.ok) throw new Error(data.error || "Something went wrong. Please try again.");
       return data;
     }
 
@@ -1142,6 +1147,7 @@ case "topics": {
       if ((step === "post" || step === "suggest_qow" || step === "ask") && requireLogin()) return;
       appState.communityStep = step;
       renderApp();
+      if (step === "default") run(loadCommunity);
     }
 
     function openResponses(qowId) {
@@ -1371,6 +1377,8 @@ case "topics": {
       const body = document.getElementById("askBody").value;
       run(async () => {
         const { id } = await api("/api/community/questions", { title, body });
+        appState.questionSearch = "";
+        await loadCommunity();
         appState.openQuestion = await api(`/api/community/questions/${id}`);
         appState.communityStep = "question";
       });
