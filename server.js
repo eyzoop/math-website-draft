@@ -173,6 +173,7 @@ ensureColumn("contest_logs", "correct", "INTEGER");
 ensureColumn("contest_logs", "incorrect", "INTEGER");
 ensureColumn("contest_logs", "unanswered", "INTEGER");
 ensureColumn("contest_logs", "reflections", "TEXT NOT NULL DEFAULT '{}'");
+ensureColumn("contest_logs", "details", "TEXT NOT NULL DEFAULT '{}'");
 
 if (!db.prepare("SELECT id FROM qow LIMIT 1").get()) {
   db.prepare("INSERT INTO qow (text) VALUES (?)").run(
@@ -571,48 +572,117 @@ if (googleConfigured) {
 |--------------------------------------------------------------------------
 */
 
+/*
+ * Contest logging V2 (backwards compatible): older logs still have totals
+ * and reflections; newer logs additionally store per-question results.
+ */
+function parseLogJSON(raw, fallback) {
+  try { return raw ? JSON.parse(raw) : fallback; } catch { return fallback; }
+}
+
 app.get("/api/contest-logs", requireAuth, (req, res) => {
-  const logs = db
-    .prepare(`
-      SELECT id, title, date, mode, correct, incorrect, unanswered, reflections
-      FROM contest_logs WHERE user_id = ? ORDER BY created_at DESC, id DESC
-    `)
-    .all(req.user.id)
-    .map(log => ({ ...log, reflections: JSON.parse(log.reflections || "{}") }));
+  const logs = db.prepare(`
+    SELECT id, title, date, mode, correct, incorrect, unanswered, reflections, details
+    FROM contest_logs WHERE user_id = ? ORDER BY created_at DESC, id DESC
+  `).all(req.user.id).map(log => ({
+    ...log,
+    reflections: parseLogJSON(log.reflections, {}),
+    details: parseLogJSON(log.details, {})
+  }));
   res.json({ logs });
 });
 
 app.post("/api/contest-logs", requireAuth, postLimit, (req, res) => {
   const title = cleanText(req.body.title, 100);
   const date = cleanText(req.body.date, 20) || new Date().toISOString().slice(0, 10);
-  const count = value => {
-    const n = Number(value);
-    return value === "" || value == null || !Number.isInteger(n) || n < 0 || n > 1000 ? null : n;
-  };
+  if (!title) return res.status(400).json({ error: "Please choose a contest." });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: "Please enter a valid YYYY-MM-DD date." });
+  }
+
   const reflections = {};
   for (const key of ["went", "proud", "better", "learned"]) {
     reflections[key] = cleanText(req.body.reflections?.[key], 2000);
   }
 
-  if (!title) {
-    return res.status(400).json({ error: "Please choose a contest." });
+  const count = value => {
+    const n = Number(value);
+    return value === "" || value == null || !Number.isInteger(n) || n < 0 || n > 1000 ? null : n;
+  };
+  let correct = count(req.body.correct);
+  let incorrect = count(req.body.incorrect);
+  let unanswered = count(req.body.unanswered);
+  let details = {};
+
+  // New V2 format (old API clients may continue submitting totals only).
+  if (req.body.details !== undefined) {
+    const incoming = req.body.details;
+    if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
+      return res.status(400).json({ error: "Invalid contest details." });
+    }
+    const f = incoming.format;
+    const results = incoming.results;
+    if (!f || typeof f !== "object" || Array.isArray(f) ||
+        !Array.isArray(results) || results.length < 1 || results.length > 100 ||
+        !Number.isInteger(f.totalQuestions) || f.totalQuestions !== results.length) {
+      return res.status(400).json({ error: "Please supply the question-level results and a matching question count (1–100)." });
+    }
+
+    const isCustom = f.custom === true;
+    const scoring = f.scoring === "proof_0_7" ? "proof_0_7" : "outcome";
+    if (scoring === "proof_0_7" && (isCustom || f.type !== "usamo" ||
+        !["Both days", "Day 1", "Day 2"].includes(f.round) ||
+        results.length !== (f.round === "Both days" ? 6 : 3))) {
+      return res.status(400).json({ error: "USA(J)MO proof scores must have 3 or 6 problems, each scored 0–7." });
+    }
+    if (scoring === "proof_0_7") {
+      if (!results.every(x => x === null || (Number.isInteger(x) && x >= 0 && x <= 7))) {
+        return res.status(400).json({ error: "Each proof score must be 0–7 or ungraded." });
+      }
+      correct = null; incorrect = null; unanswered = null;
+    } else {
+      const allowed = ["correct", "incorrect", "unanswered", "unmarked"];
+      if (!results.every(x => allowed.includes(x))) {
+        return res.status(400).json({ error: "Each question must be correct, incorrect, unanswered, or unmarked." });
+      }
+      correct = results.filter(x => x === "correct").length;
+      incorrect = results.filter(x => x === "incorrect").length;
+      unanswered = results.filter(x => x === "unanswered").length;
+    }
+
+    const validTopics = ["na", "algebra", "geometry", "counting", "number_theory"];
+    let tags = [];
+    if (isCustom) {
+      if (!Array.isArray(incoming.tags) || incoming.tags.length !== results.length) {
+        return res.status(400).json({ error: "Custom-mock topic labels must match the question count." });
+      }
+      tags = incoming.tags.map(tag => ({
+        topic: validTopics.includes(tag?.topic) ? tag.topic : "na",
+        subtopic: /^[a-z0-9_]{1,40}$/.test(tag?.subtopic || "") ? tag.subtopic : "na"
+      }));
+    }
+    details = {
+      format: {
+        custom: isCustom,
+        type: cleanText(f.type, 30),
+        year: Number.isInteger(f.year) ? f.year : null,
+        version: cleanText(f.version, 60) || null,
+        round: cleanText(f.round, 60) || null,
+        totalQuestions: results.length,
+        scoring
+      },
+      results,
+      tags
+    };
   }
 
-  /*
-   * user_id comes from the logged-in session, NOT the browser.
-   */
   db.prepare(`
-    INSERT INTO contest_logs (user_id, title, date, mode, correct, incorrect, unanswered, reflections)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO contest_logs
+      (user_id, title, date, mode, correct, incorrect, unanswered, reflections, details)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    req.user.id,
-    title,
-    date,
-    req.body.mode === "Real" ? "Real" : "Mock",
-    count(req.body.correct),
-    count(req.body.incorrect),
-    count(req.body.unanswered),
-    JSON.stringify(reflections)
+    req.user.id, title, date, req.body.mode === "Real" ? "Real" : "Mock",
+    correct, incorrect, unanswered, JSON.stringify(reflections), JSON.stringify(details)
   );
   res.json({ ok: true });
 });
